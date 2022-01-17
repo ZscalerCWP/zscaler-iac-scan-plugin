@@ -38,6 +38,8 @@ public class ZscalerScan extends SimpleBuildWrapper {
 
   private static final Logger LOGGER = Logger.getLogger(ZscalerScan.class.getName());
 
+  private static final String HIGH_VIOLATION = "HIGH";
+
   private boolean failBuild;
 
   @DataBoundConstructor
@@ -185,7 +187,7 @@ public class ZscalerScan extends SimpleBuildWrapper {
         for (int i = 0; i < violations.length(); i++) {
           JSONObject violation = violations.optJSONObject(i);
           String severity = violation.optString("severity");
-          if (severity != null && "HIGH".equals(severity.toUpperCase(Locale.ROOT))) {
+          if (severity != null && HIGH_VIOLATION.equals(severity.toUpperCase(Locale.ROOT))) {
             updateScanStatus(scanId, ScanConstants.BUILD_FAILED, ScanConstants.ScanStep_ScanResultPublished, results, listener);
             throw new AbortException("Zscaler IaC scan found violations, they need to be fixed");
           }
@@ -231,17 +233,17 @@ public class ZscalerScan extends SimpleBuildWrapper {
       request.setViolationsCount(resultsBlock.optJSONArray("violations").length());
       request.setPassedCount(resultsBlock.optJSONArray("passed_rules").length());
       request.setSkippedCount(resultsBlock.optJSONArray("skipped_violations").length());
-    }catch(Exception e){
+    } catch (Exception e) {
       listener
               .getLogger()
               .println("Failed to form scan update request due to - " + e.getMessage());
     }
-    Response<ScanResponse> response = cwpService.updateScanStatus(scanId,request).execute();
+    Response<ScanResponse> response = cwpService.updateScanStatus(scanId, request).execute();
     return getScanResponse(response);
   }
 
   private String getScanResponse(Response<ScanResponse> response) throws IOException {
-    if (response.code() == 200) {
+    if (response.isSuccessful()) {
       if (response.body() != null) {
         return response.body().getId();
       } else {
