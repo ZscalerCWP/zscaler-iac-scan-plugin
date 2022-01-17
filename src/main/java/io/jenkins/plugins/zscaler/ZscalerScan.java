@@ -9,6 +9,7 @@ import hudson.remoting.VirtualChannel;
 import hudson.tasks.BuildWrapperDescriptor;
 import io.jenkins.plugins.zscaler.models.BuildDetails;
 import io.jenkins.plugins.zscaler.models.ScanResponse;
+import io.jenkins.plugins.zscaler.models.UpdateScanRequest;
 import jenkins.model.Jenkins;
 import jenkins.tasks.SimpleBuildWrapper;
 import org.apache.commons.io.IOUtils;
@@ -93,7 +94,7 @@ public class ZscalerScan extends SimpleBuildWrapper {
                           scanId));
           File buildDir = build.getParent().getBuildDir();
           postResultsToWorkspace(results, buildDir.getAbsolutePath(), build.getNumber());
-          validateAndFailBuild(results, listener);
+          validateAndFailBuild(scanId, results, listener);
         }
       }
     } catch (Exception e) {
@@ -144,22 +145,7 @@ public class ZscalerScan extends SimpleBuildWrapper {
           .println("Failed to populate config information due to - " + e.getMessage());
     }
     Response<ScanResponse> response = cwpService.createScan(buildDetails).execute();
-    if (response.code() == 200) {
-      if (response.body() != null) {
-        return response.body().getId();
-      } else {
-        throw new AbortException("Failed to create scan");
-      }
-    } else {
-      String error = null;
-      if (response.errorBody() != null) {
-        error = IOUtils.toString(response.errorBody().byteStream(), Charset.defaultCharset());
-      }
-      throw new AbortException(
-          String.format(
-              "Received http status code %d with error message %s while creating scan",
-              response.code(), error));
-    }
+    return getScanResponse(response);
   }
 
   private StandardUsernamePasswordCredentials resolveCredentials() throws AbortException {
@@ -188,7 +174,7 @@ public class ZscalerScan extends SimpleBuildWrapper {
   }
 
   @VisibleForTesting
-  void validateAndFailBuild(String results, TaskListener listener) throws IOException {
+  void validateAndFailBuild(String scanId, String results, TaskListener listener) throws IOException {
     listener.getLogger().println(results);
 
     if (isFailBuild()) {
@@ -200,6 +186,7 @@ public class ZscalerScan extends SimpleBuildWrapper {
           JSONObject violation = violations.optJSONObject(i);
           String severity = violation.optString("severity");
           if (severity != null && "HIGH".equals(severity.toUpperCase(Locale.ROOT))) {
+            updateScanStatus(scanId, ScanConstants.BUILD_FAILED, ScanConstants.ScanStep_ScanResultPublished, results, listener);
             throw new AbortException("Zscaler IaC scan found violations, they need to be fixed");
           }
         }
@@ -207,6 +194,7 @@ public class ZscalerScan extends SimpleBuildWrapper {
     } else {
       listener.getLogger().println("Zscaler IaC scan found violations");
     }
+    updateScanStatus(scanId, ScanConstants.BUILD_COMPLETED, ScanConstants.ScanStep_ScanResultPublished, results, listener);
   }
 
   private String getConfigXml(Run build) {
@@ -228,6 +216,47 @@ public class ZscalerScan extends SimpleBuildWrapper {
       }
     }
     return null;
+  }
+
+  private String updateScanStatus(String scanId, int status, int step, String results, TaskListener listener) throws IOException{
+    Retrofit client =
+            CwpClient.getClient(Configuration.get(), Jenkins.get().proxy, resolveCredentials());
+    CWPService cwpService = client.create(CWPService.class);
+    UpdateScanRequest request = new UpdateScanRequest();
+    try {
+      request.setStatus(status);
+      request.setStep(step);
+      JSONObject jsonObject = new JSONObject(results);
+      JSONObject resultsBlock = jsonObject.getJSONObject("results");
+      request.setViolationsCount(resultsBlock.optJSONArray("violations").length());
+      request.setPassedCount(resultsBlock.optJSONArray("passed_rules").length());
+      request.setSkippedCount(resultsBlock.optJSONArray("skipped_violations").length());
+    }catch(Exception e){
+      listener
+              .getLogger()
+              .println("Failed to form scan update request due to - " + e.getMessage());
+    }
+    Response<ScanResponse> response = cwpService.updateScanStatus(scanId,request).execute();
+    return getScanResponse(response);
+  }
+
+  private String getScanResponse(Response<ScanResponse> response) throws IOException {
+    if (response.code() == 200) {
+      if (response.body() != null) {
+        return response.body().getId();
+      } else {
+        throw new AbortException("Failed to create scan");
+      }
+    } else {
+      String error = null;
+      if (response.errorBody() != null) {
+        error = IOUtils.toString(response.errorBody().byteStream(), Charset.defaultCharset());
+      }
+      throw new AbortException(
+              String.format(
+                      "Received http status code %d with error message %s while creating scan",
+                      response.code(), error));
+    }
   }
 
   public boolean isFailBuild() {

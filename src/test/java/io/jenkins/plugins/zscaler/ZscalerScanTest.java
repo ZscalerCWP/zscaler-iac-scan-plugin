@@ -19,6 +19,7 @@ import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.UUID;
 
 import static org.mockito.Mockito.*;
 
@@ -59,7 +60,7 @@ public class ZscalerScanTest {
     Path path = Paths.get(iacScanResults, "iac-scan-results", "1.json");
     String results = IOUtils.toString(path.toUri(), Charset.defaultCharset());
 
-    underTest.validateAndFailBuild(results, taskListenerMock);
+    underTest.validateAndFailBuild(UUID.randomUUID().toString(), results, taskListenerMock);
   }
 
   @Test(expected = AbortException.class)
@@ -86,7 +87,7 @@ public class ZscalerScanTest {
     Path path = Paths.get(iacScanResults, "iac-scan-results", "1.json");
     String results = IOUtils.toString(path.toUri(), Charset.defaultCharset());
 
-    underTest.validateAndFailBuild(results, taskListenerMock);
+    underTest.validateAndFailBuild(UUID.randomUUID().toString(), results, taskListenerMock);
   }
 
   @Test
