@@ -9,7 +9,6 @@ import hudson.remoting.VirtualChannel;
 import hudson.tasks.BuildWrapperDescriptor;
 import io.jenkins.plugins.zscaler.models.BuildDetails;
 import io.jenkins.plugins.zscaler.models.ScanResponse;
-import io.jenkins.plugins.zscaler.models.UpdateScanRequest;
 import jenkins.model.Jenkins;
 import jenkins.tasks.SimpleBuildWrapper;
 import org.apache.commons.io.IOUtils;
@@ -19,7 +18,6 @@ import org.json.XML;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
 import retrofit2.Response;
-import retrofit2.Retrofit;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -58,7 +56,7 @@ public class ZscalerScan extends SimpleBuildWrapper {
       throws IOException, InterruptedException {
 
     try {
-      String scanId = createScan(build, listener);
+      BuildDetails buildDetails = getBuildDetails(build, listener);
       build.addAction(new Report(build));
       if (workspace != null) {
 
@@ -93,10 +91,10 @@ public class ZscalerScan extends SimpleBuildWrapper {
                           Configuration.get(),
                           rootDir.toURI().getPath(),
                           proxy,
-                          scanId));
+                              buildDetails));
           File buildDir = build.getParent().getBuildDir();
           postResultsToWorkspace(results, buildDir.getAbsolutePath(), build.getNumber());
-          validateAndFailBuild(scanId, results, listener);
+          validateAndFailBuild(results, listener);
         }
       }
     } catch (Exception e) {
@@ -106,10 +104,7 @@ public class ZscalerScan extends SimpleBuildWrapper {
     }
   }
 
-  private String createScan(Run build, TaskListener listener) throws IOException {
-    Retrofit client =
-        CwpClient.getClient(Configuration.get(), Jenkins.get().proxy, resolveCredentials());
-    CWPService cwpService = client.create(CWPService.class);
+  private BuildDetails getBuildDetails(Run build, TaskListener listener){
     BuildDetails buildDetails = new BuildDetails();
     buildDetails.setIntegrationId(Configuration.get().getIntegrationId());
     buildDetails.setJobName(build.getParent().getDisplayName());
@@ -146,8 +141,7 @@ public class ZscalerScan extends SimpleBuildWrapper {
           .getLogger()
           .println("Failed to populate config information due to - " + e.getMessage());
     }
-    Response<ScanResponse> response = cwpService.createScan(buildDetails).execute();
-    return getScanResponse(response);
+    return buildDetails;
   }
 
   private StandardUsernamePasswordCredentials resolveCredentials() throws AbortException {
@@ -176,7 +170,7 @@ public class ZscalerScan extends SimpleBuildWrapper {
   }
 
   @VisibleForTesting
-  void validateAndFailBuild(String scanId, String results, TaskListener listener) throws IOException {
+  void validateAndFailBuild(String results, TaskListener listener) throws IOException {
     listener.getLogger().println(results);
 
     if (isFailBuild()) {
@@ -188,7 +182,6 @@ public class ZscalerScan extends SimpleBuildWrapper {
           JSONObject violation = violations.optJSONObject(i);
           String severity = violation.optString("severity");
           if (severity != null && HIGH_VIOLATION.equals(severity.toUpperCase(Locale.ROOT))) {
-            updateScanStatus(scanId, ScanConstants.BUILD_FAILED, ScanConstants.ScanStep_ScanResultPublished, results, listener);
             throw new AbortException("Zscaler IaC scan found violations, they need to be fixed");
           }
         }
@@ -196,7 +189,6 @@ public class ZscalerScan extends SimpleBuildWrapper {
     } else {
       listener.getLogger().println("Zscaler IaC scan found violations");
     }
-    updateScanStatus(scanId, ScanConstants.BUILD_COMPLETED, ScanConstants.ScanStep_ScanResultPublished, results, listener);
   }
 
   private String getConfigXml(Run build) {
@@ -218,28 +210,6 @@ public class ZscalerScan extends SimpleBuildWrapper {
       }
     }
     return null;
-  }
-
-  private String updateScanStatus(String scanId, int status, int step, String results, TaskListener listener) throws IOException{
-    Retrofit client =
-            CwpClient.getClient(Configuration.get(), Jenkins.get().proxy, resolveCredentials());
-    CWPService cwpService = client.create(CWPService.class);
-    UpdateScanRequest request = new UpdateScanRequest();
-    try {
-      request.setStatus(status);
-      request.setStep(step);
-      JSONObject jsonObject = new JSONObject(results);
-      JSONObject resultsBlock = jsonObject.getJSONObject("results");
-      request.setViolationsCount(resultsBlock.optJSONArray("violations").length());
-      request.setPassedCount(resultsBlock.optJSONArray("passed_rules").length());
-      request.setSkippedCount(resultsBlock.optJSONArray("skipped_violations").length());
-    } catch (Exception e) {
-      listener
-              .getLogger()
-              .println("Failed to form scan update request due to - " + e.getMessage());
-    }
-    Response<ScanResponse> response = cwpService.updateScanStatus(scanId, request).execute();
-    return getScanResponse(response);
   }
 
   private String getScanResponse(Response<ScanResponse> response) throws IOException {
