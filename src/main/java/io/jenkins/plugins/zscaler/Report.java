@@ -60,7 +60,7 @@ public class Report extends ManagementLink implements RunAction2, StaplerProxy {
 
   @Override
   public String getDisplayName() {
-    return "Zscaler IaC scan results";
+    return "Zscaler IaC Scan Results";
   }
 
   @Override
