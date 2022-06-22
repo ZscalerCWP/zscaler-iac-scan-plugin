@@ -19,7 +19,9 @@ public class SCMDetails {
       buildDetails.addAdditionalDetails(BuildDetails.scmType, gitUrl.contains("gitlab.com") ? SCMConstants.GITLAB : (gitUrl.contains("github.com") ? SCMConstants.GITHUB : "GIT"));
       buildDetails.setBranchName(env.get(SCMConstants.GitBranch));
       buildDetails.setCommitSha(env.get(SCMConstants.GitCommit));
-      if (gitUrl.contains("gitlab.com") || gitUrl.contains("github.com")) {
+      if (gitUrl.contains("gitlab.com") || gitUrl.contains("github.com"
+
+      )) {
         try {
           String repoFullName = new URL(repoUrl).getPath().replaceFirst("/","");
           buildDetails.addRepoDetails(SCMConstants.RepoFullName, repoFullName);
