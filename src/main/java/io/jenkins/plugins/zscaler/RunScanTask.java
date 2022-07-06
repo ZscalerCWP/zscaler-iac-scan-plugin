@@ -118,10 +118,6 @@ public class RunScanTask extends MasterToSlaveCallable<Object, RuntimeException>
         commandList.add("--repo-type");
         commandList.add(buildDetails.getAdditionalDetails().get("scm_type"));
       }
-      if (buildDetails.getAdditionalDetails() != null && StringUtils.isNotEmpty(buildDetails.getAdditionalDetails().get("log_level"))) {
-        commandList.add("--log-level");
-        commandList.add(buildDetails.getAdditionalDetails().get("log_level"));
-      }
 
       if (buildDetails.getEventDetails() != null && buildDetails.getEventDetails().size() > 0) {
         ObjectMapper objectMapper = new ObjectMapper();
