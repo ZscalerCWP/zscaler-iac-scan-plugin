@@ -76,7 +76,7 @@ public class RunScanTask extends MasterToSlaveCallable<Object, RuntimeException>
               "--sub-type",
               "JENKINS",
               "--event-type",
-              "BUILD",
+              "Build",
               "--event-id",
               buildDetails.getBuildNumber(),
               "--json-format-version",
