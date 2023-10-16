@@ -17,7 +17,7 @@
         <groupId>org.jenkins-ci.plugins</groupId>
         <artifactId>plugin</artifactId>
         <version>4.29</version>
-        <relativePath />
+        <relativePath/>
     </parent>
     <groupId>io.jenkins.plugins</groupId>
     <artifactId>zscaler-iac-scan</artifactId>
@@ -47,7 +47,7 @@
         <dependency>
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
-            <version>20220924</version>
+            <version>20231013</version>
         </dependency>
         <dependency>
             <groupId>com.squareup.retrofit2</groupId>
